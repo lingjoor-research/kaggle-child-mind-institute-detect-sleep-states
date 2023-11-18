@@ -29,7 +29,28 @@ FEATURE_NAMES = [
     "minute_cos",
     "anglez_sin",
     "anglez_cos",
+    "standardized_enmo",
+    "standardized_anglez",
+    "hour_minute",
+    "is_enmo_diff_zero",
+    "is_anglez_diff_zero",
+    "rolling_sum_enmo_diff_zero",
+    "rolling_sum_anglez_diff_zero",
 ]
+
+for name in ["anglez", "enmo", "standardized_enmo", "standardized_anglez"]:
+    FEATURE_NAMES.extend([
+        f"{name}_rolling_abs_mean",
+        f"{name}_rolling_abs_max",
+        f"{name}_rolling_abs_min",
+        f"{name}_rolling_abs_std",
+        f"{name}_rolling_abs_med",
+        f"{name}_rolling_abs_diff_mean",
+        f"{name}_rolling_abs_diff_max",
+        f"{name}_rolling_abs_diff_min",
+        f"{name}_rolling_abs_diff_std",
+        f"{name}_rolling_abs_diff_med",
+    ])
 
 ANGLEZ_MEAN = -8.810476
 ANGLEZ_STD = 35.521877
@@ -49,16 +70,71 @@ def deg_to_rad(x: pl.Expr) -> pl.Expr:
     return np.pi / 180 * x
 
 
+def add_rolling_features(x: pl.Expr, rolling_steps: int, name: str) -> list[pl.Expr]:
+    # Center = True setting the labels at the center of the window, otherwise the window is forward-moving
+    
+    features = [
+        x.rolling_mean(rolling_steps, center=True, min_periods=1).abs().cast(pl.Float32).alias(f"{name}_rolling_abs_mean"),
+        x.rolling_max(rolling_steps, center=True, min_periods=1).abs().cast(pl.Float32).alias(f"{name}_rolling_abs_max"),
+        x.rolling_min(rolling_steps, center=True, min_periods=1).abs().cast(pl.Float32).alias(f"{name}_rolling_abs_min"),
+        x.rolling_std(rolling_steps, center=True, min_periods=1).abs().cast(pl.Float32).alias(f"{name}_rolling_abs_std"),
+        x.rolling_median(rolling_steps, center=True, min_periods=1).abs().cast(pl.Float32).alias(f"{name}_rolling_abs_med"),
+    ]
+    
+    features += [
+        x.diff().abs().rolling_mean(rolling_steps, center=True, min_periods=1).cast(pl.Float32).alias(f"{name}_rolling_abs_diff_mean"),
+        x.diff().abs().rolling_max(rolling_steps, center=True, min_periods=1).cast(pl.Float32).alias(f"{name}_rolling_abs_diff_max"),
+        x.diff().abs().rolling_min(rolling_steps, center=True, min_periods=1).cast(pl.Float32).alias(f"{name}_rolling_abs_diff_min"),
+        x.diff().abs().rolling_std(rolling_steps, center=True, min_periods=1).cast(pl.Float32).alias(f"{name}_rolling_abs_diff_std"),
+        x.diff().abs().rolling_median(rolling_steps, center=True, min_periods=1).cast(pl.Float32).alias(f"{name}_rolling_abs_diff_med"),
+    ]
+
+    return features
+
+
 def add_feature(series_df: pl.DataFrame) -> pl.DataFrame:
+
+    signal_awake_pl = pl.from_records(
+        [list(range(1440)), list(np.sin(np.linspace(0, np.pi, 1440) + 0.208 * np.pi) ** 24)], 
+        schema = ["hour_minute", "signal_awake"],
+    )
+    signal_onset_pl = pl.from_records(
+        [list(range(1440)), list(np.sin(np.linspace(0, np.pi, 1440) + 0.555 * np.pi) ** 24)], 
+        schema = ["hour_minute", "signal_onset"],
+    )
+
     series_df = (
-        series_df.with_row_count("step")
+        series_df
+        # .with_row_count("step")
+        .with_columns(deg_to_rad(pl.col("anglez")).alias("anglez_rad"))
         .with_columns(
             *to_coord(pl.col("timestamp").dt.hour(), 24, "hour"),
             *to_coord(pl.col("timestamp").dt.month(), 12, "month"),
             *to_coord(pl.col("timestamp").dt.minute(), 60, "minute"),
-            pl.col("step") / pl.count("step"),
-            pl.col('anglez_rad').sin().alias('anglez_sin'),
-            pl.col('anglez_rad').cos().alias('anglez_cos'),
+            # (pl.col("step") / pl.count("step")).alias("step_pct"),
+            pl.col("anglez_rad").sin().alias("anglez_sin"),
+            pl.col("anglez_rad").cos().alias("anglez_cos"),
+        )
+        .with_columns(
+            ((pl.col("enmo") - pl.col("enmo").mean().over(["series_id"])) / pl.col("enmo").std().over(["series_id"])).alias("standardized_enmo")
+        )
+        .with_columns(
+            ((pl.col("anglez") - pl.col("anglez").mean().over(["series_id"])) / pl.col("anglez").std().over(["series_id"])).alias("standardized_anglez")
+        )
+        .with_columns(
+            *add_rolling_features(pl.col("anglez"), 60, "anglez"),
+            *add_rolling_features(pl.col("enmo"), 60, "enmo"),
+            *add_rolling_features(pl.col("standardized_anglez"), 60, "standardized_anglez"),
+            *add_rolling_features(pl.col("standardized_enmo"), 60, "standardized_enmo"),
+            (pl.col("hour")*60 + pl.col("minute")).cast(pl.Int64).alias("hour_minute"),
+            (pl.col("enmo").diff() == 0).cast(pl.Int8).alias("is_enmo_diff_zero"),
+            (pl.col("anglez").diff() == 0).cast(pl.Int8).alias("is_anglez_diff_zero")
+        )
+        .lazy().join(signal_awake_pl.select(["hour_minute", "signal_awake"]).lazy(), on = ['hour_minute'], how = "left")
+        .lazy().join(signal_onset_pl.select(["hour_minute", "signal_onset"]).lazy(), on = ['hour_minute'], how = "left")
+        .with_columns(
+            pl.col("is_enmo_diff_zero").rolling_sum(120, center=True, min_periods=1).cast(pl.Float32).alias("rolling_sum_enmo_diff_zero"),
+            pl.col("is_anglez_diff_zero").rolling_sum(120, center=True, min_periods=1).cast(pl.Float32).alias("rolling_sum_anglez_diff_zero")
         )
         .select("series_id", *FEATURE_NAMES)
     )
