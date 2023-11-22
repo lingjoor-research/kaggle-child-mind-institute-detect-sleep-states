@@ -1,0 +1,14 @@
+name: MultiExtractor
+params:
+  feature_extractors:
+    - name: SpecFeatureExtractor
+      params:
+        height: 128
+        hop_length: ${downsample_rate}
+        win_length: 
+    - name: LSTMFeatureExtractor
+      params:
+        hidden_size: 64
+        num_layers: 2
+        bidirectional: true
+        stride: ${downsample_rate}
