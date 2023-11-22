@@ -13,9 +13,9 @@ defaults:
   - _self_
   - dir: local
   - dataset: seg
-  - model: Spec2DCNN
-  - feature_extractor: CNNSpectrogram
-  - decoder: UNet1DDecoder
+  - model: Spec1D
+  - feature_extractor: MultiExtractor
+  - decoder: MLPDecoder
   - split: fold_0
 
 seed: 42
