@@ -4,7 +4,7 @@ current_dir=$(pwd)
 
 conf_content="
 data_dir: $current_dir/data
-processed_dir: $current_dir/processed
+processed_dir: $current_dir/processed_data
 output_dir: $current_dir/output
 model_dir: $current_dir/output/train
 sub_dir: ./
