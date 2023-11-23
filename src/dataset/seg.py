@@ -18,7 +18,7 @@ def get_seg_label(
     this_event_df: pd.DataFrame, num_frames: int, duration: int, start: int, end: int
 ) -> np.ndarray:
     # # (start, end)の範囲と(onset, wakeup)の範囲が重なるものを取得
-    this_event_df = this_event_df.query("@start <= wakeup & onset <= @end")
+    this_event_df = this_event_df.query(f"{start} <= wakeup & onset <= {end}")
 
     label = np.zeros((num_frames, 3))
     # onset, wakeup, sleepのラベルを作成
@@ -64,7 +64,7 @@ class SegTrainDataset(Dataset):
         pos = self.event_df.at[idx, event]
         series_id = self.event_df.at[idx, "series_id"]
         self.event_df["series_id"]
-        this_event_df = self.event_df.query("series_id == @series_id").reset_index(drop=True)
+        this_event_df = self.event_df.query(f"series_id == {series_id}").reset_index(drop=True)
         # extract data matching series_id
         this_feature = self.features[series_id]  # (n_steps, num_features)
         n_steps = this_feature.shape[0]
@@ -142,7 +142,7 @@ class SegValidDataset(Dataset):
         end = start + self.cfg.duration
         num_frames = self.upsampled_num_frames // self.cfg.downsample_rate
         label = get_seg_label(
-            self.event_df.query("series_id == @series_id").reset_index(drop=True),
+            self.event_df.query(f"series_id == {series_id}").reset_index(drop=True),
             num_frames,
             self.cfg.duration,
             start,
