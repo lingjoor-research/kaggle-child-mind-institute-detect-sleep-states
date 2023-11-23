@@ -46,11 +46,11 @@ def main(cfg: TrainConfig):
     model_summary = RichModelSummary(max_depth=2)
 
     # init experiment logger
-    pl_logger = WandbLogger(
-        name=cfg.exp_name,
-        project="child-mind-institute-detect-sleep-states",
-    )
-    pl_logger.log_hyperparams(cfg)
+    # pl_logger = WandbLogger(
+    #     name=cfg.exp_name,
+    #     project="child-mind-institute-detect-sleep-states",
+    # )
+    # pl_logger.log_hyperparams(cfg)
 
     trainer = Trainer(
         # env
