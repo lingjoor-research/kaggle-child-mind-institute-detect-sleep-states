@@ -64,7 +64,7 @@ class SegTrainDataset(Dataset):
         pos = self.event_df.at[idx, event]
         series_id = self.event_df.at[idx, "series_id"]
         self.event_df["series_id"]
-        this_event_df = self.event_df.query(f"series_id == {series_id}").reset_index(drop=True)
+        this_event_df = self.event_df.query(f"series_id == '{series_id}'").reset_index(drop=True)
         # extract data matching series_id
         this_feature = self.features[series_id]  # (n_steps, num_features)
         n_steps = this_feature.shape[0]
@@ -142,7 +142,7 @@ class SegValidDataset(Dataset):
         end = start + self.cfg.duration
         num_frames = self.upsampled_num_frames // self.cfg.downsample_rate
         label = get_seg_label(
-            self.event_df.query(f"series_id == {series_id}").reset_index(drop=True),
+            self.event_df.query(f"series_id == '{series_id}'").reset_index(drop=True),
             num_frames,
             self.cfg.duration,
             start,
