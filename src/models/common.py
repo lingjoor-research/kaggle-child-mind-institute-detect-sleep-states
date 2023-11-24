@@ -15,11 +15,12 @@ from src.models.feature_extractor.cnn import CNNSpectrogram
 from src.models.feature_extractor.lstm import LSTMFeatureExtractor
 from src.models.feature_extractor.panns import PANNsFeatureExtractor
 from src.models.feature_extractor.spectrogram import SpecFeatureExtractor
+from src.models.feature_extractor.multi_extractor import MultiExtractor
 from src.models.spec1D import Spec1D
 from src.models.spec2Dcnn import Spec2DCNN
 
 FEATURE_EXTRACTOR_TYPE = Union[
-    CNNSpectrogram, PANNsFeatureExtractor, LSTMFeatureExtractor, SpecFeatureExtractor
+    CNNSpectrogram, PANNsFeatureExtractor, LSTMFeatureExtractor, SpecFeatureExtractor, MultiExtractor
 ]
 DECODER_TYPE = Union[
     UNet1DDecoder, LSTMDecoder, TransformerDecoder, MLPDecoder, TransformerCNNDecoder
@@ -46,6 +47,11 @@ def get_feature_extractor(
         feature_extractor = SpecFeatureExtractor(
             in_channels=feature_dim, out_size=num_timesteps, **cfg.params
         )
+    elif cfg.name == "MultiExtractor":
+        feature_extractors = []
+        for fe_cfg in cfg.params["feature_extractors"]:
+            feature_extractors.append(get_feature_extractor(fe_cfg, feature_dim, num_timesteps))
+        feature_extractor = MultiExtractor(feature_extractors)
     else:
         raise ValueError(f"Invalid feature extractor name: {cfg.name}")
 
