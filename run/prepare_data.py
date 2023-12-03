@@ -66,7 +66,7 @@ def add_feature(series_df: pl.DataFrame) -> pl.DataFrame:
 
     series_df = (
         series_df
-        # .with_row_count("step")
+        .with_row_count("step")
         .with_columns(pl.col("timestamp").dt.hour().alias("hour"))
         .with_columns(pl.col("timestamp").dt.minute().alias("minute"))
         .with_columns(deg_to_rad(pl.col("anglez")).alias("anglez_rad"))
@@ -88,19 +88,20 @@ def add_feature(series_df: pl.DataFrame) -> pl.DataFrame:
         )
         .lazy().join(signal_awake_pl.select(["hour_minute", "signal_awake"]).lazy(), on = ['hour_minute'], how = "left")
         .lazy().join(signal_onset_pl.select(["hour_minute", "signal_onset"]).lazy(), on = ['hour_minute'], how = "left")
-        .with_columns(
-            pl.col("is_enmo_diff_zero").rolling_sum(120, center=True, min_periods=1).cast(pl.Float32).alias('rolling_sum_enmo_diff_zero'),
-            pl.col("is_anglez_diff_zero").rolling_sum(120, center=True, min_periods=1).cast(pl.Float32).alias('rolling_sum_anglez_diff_zero')
-        )
+        .collect()
+        # .with_columns(
+        #     pl.col("is_enmo_diff_zero").rolling_sum(120, center=True, min_periods=1).cast(pl.Float32).alias('rolling_sum_enmo_diff_zero'),
+        #     pl.col("is_anglez_diff_zero").rolling_sum(120, center=True, min_periods=1).cast(pl.Float32).alias('rolling_sum_anglez_diff_zero')
+        # )
     )
     return series_df
 
 
-def save_each_series(this_series_df: pl.DataFrame, columns: list[str], output_dir: Path):
+def save_each_series(this_series_df: pl.DataFrame, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for col_name in columns:
-        x = this_series_df.get_column(col_name).to_numpy(zero_copy_only=True)
+    for col_name in this_series_df.columns:
+        x = this_series_df.get_column(col_name).to_numpy()
         np.save(output_dir / f"{col_name}.npy", x)
 
 
@@ -156,7 +157,7 @@ def main(cfg: PrepareDataConfig):
 
             # 特徴量をそれぞれnpyで保存
             series_dir = processed_dir / series_id  # type: ignore
-            save_each_series(this_series_df, FEATURE_NAMES, series_dir)
+            save_each_series(this_series_df, series_dir)
 
 
 if __name__ == "__main__":
