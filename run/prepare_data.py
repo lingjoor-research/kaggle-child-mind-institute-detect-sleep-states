@@ -68,6 +68,7 @@ def add_feature(series_df: pl.DataFrame) -> pl.DataFrame:
         series_df
         # .with_row_count("step")
         .with_columns(pl.col("timestamp").dt.hour().alias("hour"))
+        .with_columns(pl.col("timestamp").dt.minute().alias("minute"))
         .with_columns(deg_to_rad(pl.col("anglez")).alias("anglez_rad"))
         .with_columns(
             *to_coord(pl.col("timestamp").dt.hour(), 24, "hour"),
